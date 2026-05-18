@@ -1,0 +1,131 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile document",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "isAdmin": { "type": "boolean" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["email", "createdAt"]
+    },
+    "UserAction": {
+      "title": "UserAction",
+      "description": "User action record (like, watch later, history, follow)",
+      "type": "object",
+      "properties": {
+        "videoId": { "type": "string" },
+        "channelId": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["createdAt"]
+    },
+    "Video": {
+      "title": "Video",
+      "description": "Video document",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "thumbnail": { "type": "string", "description": "URL to the thumbnail image" },
+        "videoUrl": { "type": "string", "description": "URL to the video file" },
+        "categoryId": { "type": "string" },
+        "channelId": { "type": "string" },
+        "channelName": { "type": "string" },
+        "views": { "type": "number" },
+        "uploadedAt": { "type": "timestamp" },
+        "authorUid": { "type": "string" }
+      },
+      "required": ["title", "thumbnail", "videoUrl", "channelId", "channelName", "views", "uploadedAt", "authorUid"]
+    },
+    "Channel": {
+      "title": "Channel",
+      "description": "Channel document",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "subscribers": { "type": "number" },
+        "avatarUrl": { "type": "string" }
+      },
+      "required": ["name", "authorUid", "subscribers", "avatarUrl"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Video category",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" }
+      },
+      "required": ["name"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Comment on a video",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "authorEmail": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["text", "authorUid", "authorEmail", "createdAt"]
+    },
+    "Ad": {
+      "title": "Ad",
+      "description": "Advertisement banner",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "targetUrl": { "type": "string" },
+        "active": { "type": "boolean" }
+      },
+      "required": ["type", "imageUrl", "targetUrl", "active"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "User profiles"
+    },
+    "/users/{userId}/likedVideos/{videoId}": {
+      "schema": { "$ref": "#/entities/UserAction" },
+      "description": "User's liked videos"
+    },
+    "/users/{userId}/watchLater/{videoId}": {
+      "schema": { "$ref": "#/entities/UserAction" },
+      "description": "User's watch later list"
+    },
+    "/users/{userId}/history/{videoId}": {
+      "schema": { "$ref": "#/entities/UserAction" },
+      "description": "User's watch history"
+    },
+    "/users/{userId}/followedChannels/{channelId}": {
+      "schema": { "$ref": "#/entities/UserAction" },
+      "description": "User's followed channels"
+    },
+    "/videos/{videoId}": {
+      "schema": { "$ref": "#/entities/Video" },
+      "description": "Platform videos"
+    },
+    "/videos/{videoId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/Comment" },
+      "description": "Comments left on a given video"
+    },
+    "/channels/{channelId}": {
+      "schema": { "$ref": "#/entities/Channel" },
+      "description": "Channels on the platform"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Video categories"
+    },
+    "/ads/{adId}": {
+      "schema": { "$ref": "#/entities/Ad" },
+      "description": "Platform advertisements"
+    }
+  }
+}

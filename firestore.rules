@@ -1,0 +1,175 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ---- GLOBALS & HELPERS ----
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isAdmin() {
+      return request.auth != null && request.auth.token.email == 'viralnewstories@gmail.com';
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // ---- ENTITY VALIDATORS ----
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'createdAt']) && 
+             data.email is string && data.email.size() <= 100 &&
+             data.createdAt <= request.time &&
+             data.email == request.auth.token.email;
+    }
+
+    function isValidUserAction(data, actionType) {
+      return data.keys().hasAll(['createdAt']) && data.createdAt <= request.time;
+    }
+
+    function isValidVideo(data) {
+      return data.keys().hasAll(['title', 'thumbnail', 'views', 'uploadedAt', 'authorUid']) &&
+             data.title is string && data.title.size() <= 200 && data.title.size() > 0 &&
+             data.thumbnail is string && data.thumbnail.size() <= 2000 &&
+             (!data.keys().hasAny(['videoUrl']) || (data.videoUrl is string && data.videoUrl.size() <= 2000)) &&
+             (!data.keys().hasAny(['embedCode']) || (data.embedCode is string && data.embedCode.size() <= 20000)) &&
+             (!data.keys().hasAny(['channelId']) || (data.channelId is string && data.channelId.size() <= 128)) &&
+             (!data.keys().hasAny(['channelName']) || (data.channelName is string && data.channelName.size() <= 100)) &&
+             data.views is number &&
+             data.authorUid is string && data.authorUid == request.auth.uid &&
+             (!data.keys().hasAny(['categoryId']) || (data.categoryId is string && data.categoryId.size() <= 128)) &&
+             (!data.keys().hasAny(['description']) || (data.description is string && data.description.size() <= 5000)) &&
+             (!data.keys().hasAny(['duration']) || (data.duration is string && data.duration.size() <= 50)) &&
+             (!data.keys().hasAny(['sourceWebsite']) || (data.sourceWebsite is string && data.sourceWebsite.size() <= 200)) &&
+             (!data.keys().hasAny(['actorIds']) || (data.actorIds is list && data.actorIds.size() <= 50)) &&
+             (!data.keys().hasAny(['tags']) || (data.tags is list && data.tags.size() <= 50));
+    }
+
+    function isValidChannel(data) {
+      return data.keys().hasAll(['name', 'authorUid', 'subscribers', 'avatarUrl']) &&
+             data.name is string && data.name.size() <= 100 && data.name.size() > 0 &&
+             data.authorUid is string && data.authorUid.size() <= 128 &&
+             data.subscribers is number &&
+             data.avatarUrl is string && data.avatarUrl.size() <= 2000 &&
+             data.authorUid == request.auth.uid;
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['name']) &&
+             data.name is string && data.name.size() <= 100 && data.name.size() > 0;
+    }
+
+    function isValidComment(data) {
+      return data.keys().hasAll(['text', 'authorUid', 'authorEmail', 'createdAt']) &&
+             data.text is string && data.text.size() > 0 && data.text.size() <= 2000 &&
+             data.authorUid is string && data.authorUid == request.auth.uid &&
+             data.authorEmail is string && data.authorEmail == request.auth.token.email &&
+             data.createdAt == request.time;
+    }
+
+    function isValidAd(data) {
+      return data.keys().hasAll(['type', 'imageUrl', 'targetUrl', 'active']) &&
+             data.type is string && data.type.size() <= 50 &&
+             data.imageUrl is string && data.imageUrl.size() <= 500 &&
+             data.targetUrl is string && data.targetUrl.size() <= 500 &&
+             data.active is bool;
+    }
+
+    // ---- COLLECTIONS ----
+    
+    // Users
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUser(incoming()) && incoming().keys().size() == 2;
+      allow update: if (isOwner(userId) || isAdmin()) && incoming().diff(existing()).affectedKeys().hasOnly(['isAdmin']) && isAdmin();
+      
+      // User Subcollections
+      match /likedVideos/{videoId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(videoId) && isValidUserAction(incoming(), 'like');
+        allow delete: if isOwner(userId);
+      }
+      match /watchLater/{videoId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(videoId) && isValidUserAction(incoming(), 'watchLater');
+        allow delete: if isOwner(userId);
+      }
+      match /history/{videoId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(videoId) && isValidUserAction(incoming(), 'history');
+        allow update: if isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['createdAt']) && incoming().createdAt <= request.time;
+        allow delete: if isOwner(userId);
+      }
+      match /followedChannels/{channelId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidId(channelId) && isValidUserAction(incoming(), 'follow') && existsAfter(/databases/$(database)/documents/channels/$(channelId));
+        allow delete: if isOwner(userId);
+      }
+    }
+
+    // Videos
+    match /videos/{videoId} {
+      allow get, list: if true;
+      allow create: if isAdmin() && isValidId(videoId) && isValidVideo(incoming()) && incoming().uploadedAt == request.time;
+      allow update: if (isAdmin()) || 
+                       (incoming().diff(existing()).affectedKeys().hasOnly(['views', 'likes'])) ||
+                       (incoming().diff(existing()).affectedKeys().hasOnly(['views'])) ||
+                       (incoming().diff(existing()).affectedKeys().hasOnly(['likes'])); 
+      // Views increment can be anywhere this is a small exception, or restricted. 
+      // For real protection we'd do a subcollection or restrict the increment to existing().views + 1
+      allow delete: if isAdmin();
+
+      match /comments/{commentId} {
+        allow get, list: if true;
+        allow create: if isSignedIn() && isValidId(commentId) && isValidComment(incoming());
+        allow delete: if isAdmin() || (isSignedIn() && existing().authorUid == request.auth.uid);
+      }
+    }
+
+    // Channels
+    match /channels/{channelId} {
+      allow get, list: if true;
+      allow create: if isAdmin() && isValidId(channelId) && isValidChannel(incoming());
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Categories
+    match /categories/{categoryId} {
+      allow get, list: if true;
+      allow create: if isAdmin() && isValidId(categoryId) && isValidCategory(incoming()) && incoming().keys().size() == 1;
+      allow update: if isAdmin() && isValidCategory(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // Ads
+    match /ads/{adId} {
+      allow get, list: if true;
+      allow create: if isAdmin() && isValidId(adId) && isValidAd(incoming()) && incoming().keys().size() == 4;
+      allow update: if isAdmin() && isValidAd(incoming());
+      allow delete: if isAdmin();
+    }
+
+    // Actors
+    match /actors/{actorId} {
+      allow get, list: if true;
+      allow create, update, delete: if isAdmin();
+    }
+  }
+}

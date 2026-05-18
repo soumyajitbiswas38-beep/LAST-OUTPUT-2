@@ -1,0 +1,7 @@
+{
+  "name": "Xbucket",
+  "description": "Premium video streaming platform with a modern dark and wine-colored UI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
